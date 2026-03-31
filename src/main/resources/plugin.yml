@@ -1,0 +1,9 @@
+name: QCAprilFools2026
+version: '1.0-SNAPSHOT'
+main: org.queercraft.qCAprilFools2026.QCAprilFools2026
+api-version: '1.21'
+prefix: QCAprilFools2026
+load: STARTUP
+authors: [ colserra ]
+description: A simple plugin to give the mannquin mob a basic AI and teleport to random players
+website: queercraft.net
