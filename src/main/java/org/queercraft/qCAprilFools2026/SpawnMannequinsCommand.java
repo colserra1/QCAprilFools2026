@@ -90,6 +90,8 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
                 // Set skin to random other player or target if only player online
                 Player skinSource = getRandomSkinPlayer(player);
                 mannequin.setProfile(ResolvableProfile.resolvableProfile(skinSource.getPlayerProfile()));
+                mannequin.setCustomName(skinSource.getName());
+                mannequin.setCustomNameVisible(true);
 
                 manager.register(mannequin.getUniqueId(), player.getUniqueId(), driver.getUniqueId());
             }

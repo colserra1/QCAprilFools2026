@@ -9,9 +9,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -19,6 +17,7 @@ public class MannequinManager {
     private final Plugin plugin;
 
     private final Map<UUID, SpookyMannequin> mannequins = new ConcurrentHashMap<>();
+    private int cleanupTick = 0;
 
     private BukkitTask task;
 
@@ -49,117 +48,159 @@ public class MannequinManager {
             Zombie driver = (Zombie) Bukkit.getEntity(spookyMannequin.driverId);
             //plugin.getLogger().info("Ticking mannequin " + entityId);
 
+
             long now = System.currentTimeMillis();
 
-            // Cleanup invalid entities
-            if (entity == null || target == null || target.isDead() || driver == null || driver.isDead()) {
-                spookyMannequin.missingTicks++;
+            try {
+                // Cleanup invalid entities
+                if (entity == null || target == null || target.isDead() || driver == null || driver.isDead()) {
+                    spookyMannequin.missingTicks++;
 
-                // Allow ~1 second recovery (10 ticks at 2L interval)
-                if (spookyMannequin.missingTicks < 10) {
-                    continue;
-                }
+                    // Allow ~1 second recovery (10 ticks at 2L interval)
+                    if (spookyMannequin.missingTicks < 10) {
+                        continue;
+                    }
 
-                //plugin.getLogger().info("Entity missing too long, cleaning up");
+                    //plugin.getLogger().info("Entity missing too long, cleaning up");
 
-                if (entity != null) {
-                    //plugin.getLogger().info("Mannequin is alive but driver or target are gone, removing mannequin");
-                    entity.remove();
-                } else {
-                    //plugin.getLogger().info("Mannequin became null somehow, cleaning up");
-                    if (driver != null) {
+                    if (entity != null) {
+                        //plugin.getLogger().info("Mannequin is alive but driver or target are gone, removing mannequin");
+                        entity.remove();
+                    } else {
+                        //plugin.getLogger().info("Mannequin became null somehow, cleaning up");
+                        if (driver != null) {
+                            driver.remove();
+                        }
+                    }
+                    if (driver == null || driver.isDead()) {
+                        if (entity != null) {
+                            //plugin.getLogger().info("Mannequin is alive but driver is gone, removing mannequin");
+                            entity.remove();
+                        }
+                    }
+                    if ((entity == null && driver != null) || (target == null || target.isDead()) && driver != null) {
+                        //plugin.getLogger().info("Driver is alive but mannequin or target are gone, removing driver");
                         driver.remove();
                     }
+                    //plugin.getLogger().info("Removing map entry");
+                    it.remove();
+                    continue;
                 }
-                if (driver == null || driver.isDead()) {
+
+                if (cleanupTick++ >= 100) { // every ~10 seconds
+                    cleanupTick = 0;
+                    cleanupOrphans();
+                }
+
+
+                driver.setTarget(target);
+
+                if (now - spookyMannequin.spawnTime > 120000 && !spookyMannequin.getDeathRattle()) {
+                    //plugin.getLogger().info("Mannequin TTL ran out, removing mannequin");
                     if (entity != null) {
-                        //plugin.getLogger().info("Mannequin is alive but driver is gone, removing mannequin");
+                        entity.getWorld().playSound(entity.getLocation(),
+                                Sound.ENTITY_ENDERMAN_DEATH, 0.5f, 1.5f);
+                        spookyMannequin.setDeathRattle(true);
                         entity.remove();
                     }
+                    it.remove();
+                    driver.remove();
+                    continue;
                 }
-                if ((entity == null && driver != null) || (target == null || target.isDead())) {
-                    //plugin.getLogger().info("Driver is alive but mannequin or target are gone, removing driver");
+
+                if (plugin.getConfig().getBoolean("features.weepingAngel", true)) {
+                    boolean beingLookedAt = isPlayerLookingAt(target, entity);
+
+                    if (beingLookedAt && !spookyMannequin.frozen) {
+                        driver.setAI(false);
+                        driver.setVelocity(new Vector(0, 0, 0));
+                        spookyMannequin.frozen = true;
+                    }
+
+                    if (!beingLookedAt && spookyMannequin.frozen) {
+                        driver.setAI(true);
+                        spookyMannequin.frozen = false;
+                    }
+                }
+
+                Location entityLocation = entity.getLocation();
+                Location targetLocation = target.getLocation();
+
+                Location dLoc = driver.getLocation();
+                Location mLoc = dLoc.clone();
+                entity.teleport(mLoc);
+
+                double distance;
+
+                World entityWorld = entity.getWorld();
+                World targetWorld = target.getWorld();
+
+                if (!isAllowedWorld(targetWorld)) {
+                    //plugin.getLogger().info("Target is in unsupported world "+ targetWorld +", pausing mannequin");
+                    driver.setTarget(null);
+                    continue;
+                } else if (!entityWorld.equals(targetWorld)) {
+                    //plugin.getLogger().info("Target is in supported world "+ targetWorld +", teleporting mannequin");
+                    //plugin.getLogger().info(isAllowedWorld(targetWorld)+"");
+                    distance = 999;
+                } else {
+                    distance = entityLocation.distance(targetLocation);
+                }
+
+                if (distance > 200) {
+                    if (!isAllowedWorld(targetWorld)) {
+                        continue;
+                    }
+                    //plugin.getLogger().info("Mannequin is more than 200 blocks from target, teleporting");
+                    Location newLoc = getSafeSpawnLocation(target);
+                    //plugin.getLogger().info("Teleporting to new location: " + newLoc);
+                    entity.getLocation().getChunk().load();
+                    newLoc.getChunk().load();
+                    driver.teleport(newLoc);
+                    entity.teleport(newLoc);
+
+                    driver.setTarget(target);
+                    continue;
+                }
+
+                lookAt(entity, targetLocation);
+
+                if (distance < 2.5) {
+                    tryAttack(entity, target, spookyMannequin);
+                }
+            } catch (Exception e) {
+                if(driver != null) {
                     driver.remove();
                 }
-                //plugin.getLogger().info("Removing map entry");
-                it.remove();
-                continue;
-            }
-
-            driver.setTarget(target);
-
-            if (now - spookyMannequin.spawnTime > 120000 && !spookyMannequin.getDeathRattle()) {
-                //plugin.getLogger().info("Mannequin TTL ran out, removing mannequin");
-                if (entity != null) {
-                    entity.getWorld().playSound(entity.getLocation(),
-                            Sound.ENTITY_ENDERMAN_DEATH, 0.5f, 1.5f);
-                    spookyMannequin.setDeathRattle(true);
+                if(entity != null) {
                     entity.remove();
                 }
                 it.remove();
-                driver.remove();
-                continue;
+                throw new RuntimeException(e);
             }
+        }
+    }
 
-            if (plugin.getConfig().getBoolean("features.weepingAngel", true)) {
-                boolean beingLookedAt = isPlayerLookingAt(target, entity);
+    private void cleanupOrphans() {
+        Set<UUID> validEntities = new HashSet<>();
 
-                if (beingLookedAt && !spookyMannequin.frozen) {
-                    driver.setAI(false);
-                    driver.setVelocity(new Vector(0, 0, 0));
-                    spookyMannequin.frozen = true;
+        for(SpookyMannequin mannequin : mannequins.values()) {
+            validEntities.add(mannequin.targetId);
+            validEntities.add(mannequin.driverId);
+        }
+
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity e : world.getEntities()) {
+
+                boolean isMannequin = e.getScoreboardTags().contains("hostile_mannequin");
+                boolean isDriver = e.getScoreboardTags().contains("mannequin_driver");
+
+                if (!isMannequin && !isDriver) continue;
+
+                if (!validEntities.contains(e.getUniqueId())) {
+                    plugin.getLogger().info("Removing orphaned entity: " + e.getUniqueId());
+                    e.remove();
                 }
-
-                if (!beingLookedAt && spookyMannequin.frozen) {
-                    driver.setAI(true);
-                    spookyMannequin.frozen = false;
-                }
-            }
-
-            Location entityLocation = entity.getLocation();
-            Location targetLocation = target.getLocation();
-
-            Location dLoc = driver.getLocation();
-            Location mLoc = dLoc.clone();
-            entity.teleport(mLoc);
-
-            double distance;
-
-            World entityWorld = entity.getWorld();
-            World targetWorld = target.getWorld();
-
-            if (!isAllowedWorld(targetWorld)) {
-                //plugin.getLogger().info("Target is in unsupported world "+ targetWorld +", pausing mannequin");
-                driver.setTarget(null);
-                continue;
-            } else if (!entityWorld.equals(targetWorld)) {
-                //plugin.getLogger().info("Target is in supported world "+ targetWorld +", teleporting mannequin");
-                //plugin.getLogger().info(isAllowedWorld(targetWorld)+"");
-                distance = 999;
-            } else {
-                distance = entityLocation.distance(targetLocation);
-            }
-
-            if (distance > 200) {
-                if (!isAllowedWorld(targetWorld)) {
-                    continue;
-                }
-                //plugin.getLogger().info("Mannequin is more than 200 blocks from target, teleporting");
-                Location newLoc = getSafeSpawnLocation(target);
-                //plugin.getLogger().info("Teleporting to new location: " + newLoc);
-                entity.getLocation().getChunk().load();
-                newLoc.getChunk().load();
-                driver.teleport(newLoc);
-                entity.teleport(newLoc);
-
-                driver.setTarget(target);
-                continue;
-            }
-
-            lookAt(entity, targetLocation);
-
-            if (distance < 2.5) {
-                tryAttack(entity, target, spookyMannequin);
             }
         }
     }
