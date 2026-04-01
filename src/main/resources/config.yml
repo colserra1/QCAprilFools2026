@@ -1,6 +1,9 @@
 features:
   # Set this to true to enable weeping angel behaviour (mannequins will not move when looked at)
   weepingAngel: true
+  # Set this to true to give mannequins the nametag of the player they are copying. Will display an additionl
+  # "NPC" tag line when coming closer
+  nametags: true
 
 settings:
   # Change this value to set the distance at which mannequins spawn from their targets

@@ -19,6 +19,11 @@ public final class QCAprilFools2026 extends JavaPlugin {
         saveDefaultConfig();
         FileConfiguration config = getConfig();
 
+        getServer().getPluginManager().registerEvents(
+                new DriverDamageListener(),
+                this
+        );
+
         logger.info("Enabling QCAprilFools2026...");
         MannequinManager manager = new MannequinManager(this);
         manager.start();

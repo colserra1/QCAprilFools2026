@@ -69,6 +69,9 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
 
                 mannequin.addScoreboardTag("hostile_mannequin");
 
+                // Set skin to random other player or target if only player online
+                Player skinSource = getRandomSkinPlayer(player);
+
                 Zombie driver = player.getWorld().spawn(spawnLoc, Zombie.class);
                 driver.setInvisible(true);
                 driver.setSilent(true);
@@ -87,11 +90,13 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
                 // Give sword
                 mannequin.getEquipment().setItemInMainHand(new ItemStack(Material.NETHERITE_SWORD));
 
-                // Set skin to random other player or target if only player online
-                Player skinSource = getRandomSkinPlayer(player);
                 mannequin.setProfile(ResolvableProfile.resolvableProfile(skinSource.getPlayerProfile()));
-                mannequin.setCustomName(skinSource.getName());
-                mannequin.setCustomNameVisible(true);
+                if(plugin.getConfig().getBoolean("features.nametags")){
+                    mannequin.setCustomName(skinSource.getName());
+                    mannequin.setCustomNameVisible(true);
+                }
+
+
 
                 manager.register(mannequin.getUniqueId(), player.getUniqueId(), driver.getUniqueId());
             }
@@ -135,59 +140,105 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
     private Location getSafeSpawnLocation(Player player) {
 
         Location base = player.getLocation();
+        //logger.info("Initial player location: " + base);
         World world = player.getWorld();
 
-        for (int attempt = 0; attempt < 10; attempt++) {
+        for (int attempt = 0; attempt < 30; attempt++) {
 
             double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
-            double distance = ThreadLocalRandom.current().nextDouble(plugin.getConfig().getInt("settings.spawnDistance"), plugin.getConfig().getInt("settings.spawnDistance") + 10);
+            int spawnDistance = plugin.getConfig().getInt("settings.spawnDistance");
+            double distance = ThreadLocalRandom.current().nextDouble(spawnDistance, spawnDistance +10);
+            //logger.info("Config distance: " + spawnDistance);
+            //logger.info("Actual distance: " + distance);
 
             Location loc = base.clone().add(
                     Math.cos(angle) * distance,
-                    0,
+                    base.getY(),
                     Math.sin(angle) * distance
             );
+            //logger.info("Initial spawn location: " + loc);
 
-            loc.getChunk().load();
-            int highestY = world.getHighestBlockYAt(loc);
-            loc.setY(highestY);
-
-            Location safe = findSafeGround(loc);
+            Location safe = findSafeGroundNearY(loc, base.getBlockY());
 
             if (safe != null) {
+                //logger.info("Final spawn location: " + safe);
                 return safe;
             }
+
         }
 
-        // fallback: just return player location if nothing found
-        return player.getLocation();
+        // fallback to surface
+        //logger.info("No safe spawn location, defaulting to surface");
+        return getSurfaceFallback(player);
     }
 
-    private Location findSafeGround(Location loc) {
+    private Location findSafeGroundNearY(Location loc, int targetY) {
 
         World world = loc.getWorld();
 
-        for (int y = loc.getBlockY(); y > world.getMinHeight(); y--) {
+        int minY = world.getMinHeight();
+        int maxY = world.getMaxHeight();
 
-            Location ground = new Location(world, loc.getX(), y, loc.getZ());
-            Material block = ground.getBlock().getType();
+        // Search up and down around player Y
+        for (int offset = 0; offset < 12; offset++) {
 
-            // Must be solid ground
-            if (!block.isSolid()) continue;
+            int[] ys = new int[] {
+                    targetY + offset,
+                    targetY - offset
+            };
 
-            // Reject bad surfaces
-            if (block == Material.WATER || block == Material.LAVA) continue;
+            for (int y : ys) {
 
-            // Check space above (2 blocks for entity)
-            Material above = ground.clone().add(0, 1, 0).getBlock().getType();
-            Material above2 = ground.clone().add(0, 2, 0).getBlock().getType();
+                if (y < minY || y > maxY) continue;
 
-            if (!above.isAir() || !above2.isAir()) continue;
-
-            // Found valid spot
-            return ground.add(0.5, 1, 0.5);
+                Location ground = new Location(world, loc.getX(), y, loc.getZ());
+                //logger.info("Spawn candidate found: " + ground);
+                if (isSafeSpawnBlock(ground)) {
+                    return ground.add(0.5, 1, 0.5);
+                }
+            }
         }
 
         return null;
+    }
+
+    private boolean isSafeSpawnBlock(Location ground) {
+
+        Material block = ground.getBlock().getType();
+
+        // Must be solid
+        if (!block.isSolid()) return false;
+
+        // Reject liquids
+        if (block == Material.WATER || block == Material.LAVA) return false;
+
+        // Reject annoying/dangerous blocks
+        if (block == Material.CACTUS || block == Material.MAGMA_BLOCK) return false;
+
+        // Check space above
+        Material above = ground.clone().add(0, 1, 0).getBlock().getType();
+        Material above2 = ground.clone().add(0, 2, 0).getBlock().getType();
+        //logger.info("Valid candidate found: " + ground);
+        return above.isAir() && above2.isAir();
+    }
+
+    private Location getSurfaceFallback(Player player) {
+
+        Location base = player.getLocation();
+        World world = player.getWorld();
+
+        double angle = ThreadLocalRandom.current().nextDouble(0, Math.PI * 2);
+        double distance = plugin.getConfig().getInt("spawnDistance");
+
+        Location loc = base.clone().add(
+                Math.cos(angle) * distance,
+                0,
+                Math.sin(angle) * distance
+        );
+
+        int y = world.getHighestBlockYAt(loc);
+        loc.setY(y);
+
+        return loc.add(0.5, 1, 0.5);
     }
 }
