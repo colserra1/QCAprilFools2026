@@ -42,13 +42,25 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
         String arg = args.length > 0 ? args[0].toLowerCase() : "";
         switch (arg) {
             case "":
-                handleGlobalSpawnCommand(sender);
+                if (sender.hasPermission("spawnmannequins")) {
+                    handleGlobalSpawnCommand(sender);
+                } else {
+                    sender.sendMessage("You do not have permission to use this command.");
+                }
                 break;
             case "reload":
-                handleReloadCommand(sender);
+                if (sender.hasPermission("spawnmannequins.reload")) {
+                    handleReloadCommand(sender);
+                } else {
+                    sender.sendMessage("You do not have permission to use this command.");
+                }
                 break;
             default:
-                handleIndividualSpawnCommand(sender, arg);
+                if (sender.hasPermission("spawnmannequins")) {
+                    handleIndividualSpawnCommand(sender, arg);
+                } else {
+                    sender.sendMessage("You do not have permission to use this command.");
+                }
                 break;
         }
     }
@@ -128,7 +140,7 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
     }
 
     public void handleReloadCommand(CommandSender sender) {
-        if (sender.hasPermission("timeplayed.reload")) {
+        if (sender.hasPermission("spawnmannequins.reload")) {
             plugin.reloadConfig();
             sender.sendMessage("The config has been reloaded.");
         } else {

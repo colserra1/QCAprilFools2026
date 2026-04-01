@@ -12,6 +12,9 @@ commands:
     description: Spawn a wave of mannequins that teleport to random players and attack them or, alternatively, only for a single player.
     usage: /spawnmannequins [player]
 permissions:
+  spawnmannequons:
+    description: General usage of the plugin
+    default: op
   spawnmannequins.reload:
     description: Allows reloading of the config
     default: op
