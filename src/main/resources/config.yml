@@ -1,0 +1,8 @@
+features:
+  # Set this to true to enable weeping angel behaviour (mannequins will not move when looked at)
+  weepingAngel: true
+
+settings:
+  # Change this value to set the distance at which mannequins spawn from their targets
+  # (will look for spawns up to 10 blocks further)
+  spawnDistance: 15

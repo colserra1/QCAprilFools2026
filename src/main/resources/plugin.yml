@@ -5,5 +5,13 @@ api-version: '1.21'
 prefix: QCAprilFools2026
 load: STARTUP
 authors: [ colserra ]
-description: A simple plugin to give the mannquin mob a basic AI and teleport to random players
+description: A simple plugin to give the mannequin mob a basic AI and teleport to random players
 website: queercraft.net
+commands:
+  spawnmannequins:
+    description: Spawn a wave of mannequins that teleport to random players and attack them
+    usage: /spawnmannequins
+permissions:
+  spawnmannequins.reload:
+    description: Allows reloading of the config
+    default: op
