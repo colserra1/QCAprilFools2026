@@ -42,26 +42,43 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
         String arg = args.length > 0 ? args[0].toLowerCase() : "";
         switch (arg) {
             case "":
-                handleSpawnCommand(sender);
+                handleGlobalSpawnCommand(sender);
                 break;
             case "reload":
                 handleReloadCommand(sender);
                 break;
             default:
+                handleIndividualSpawnCommand(sender, arg);
                 break;
         }
     }
 
-    public void handleSpawnCommand(CommandSender sender) {
+    public void handleIndividualSpawnCommand(CommandSender sender, String playerName) {
+        Player player = Bukkit.getPlayer(playerName);
+        if (player != null) {
+            createMannequin(player, sender);
+            logger.info("Spawned mannequin for "+player.getName());
+            sender.sendMessage("Spawned mannequin for "+player.getName());
+        }else{
+            sender.sendMessage("§cPlayer not found.");
+        }
+    }
+
+    public void handleGlobalSpawnCommand(CommandSender sender) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            createMannequin(player, sender);
+        }
+        logger.info("Spawned mannequins for all players.");
+        sender.sendMessage("Spawned mannequins for all players.");
+    }
+
+    public void createMannequin(Player player, CommandSender sender) {
         try {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                String targetWorld = player.getWorld().getName();
-                if (!(targetWorld.equalsIgnoreCase("world") || targetWorld.equalsIgnoreCase("world_nether"))) {
-                    //logger.info("Target is in unsupported world, not spawning mannequin");
-                    //logger.info("World: " + targetWorld +
-                    //        " Environment: " + player.getWorld().getEnvironment());
-                    continue;
-                }
+            String targetWorld = player.getWorld().getName();
+            if (targetWorld.equalsIgnoreCase("world") || targetWorld.equalsIgnoreCase("world_nether")) {
+                //logger.info("Target is in unsupported world, not spawning mannequin");
+                //logger.info("World: " + targetWorld +
+                //        " Environment: " + player.getWorld().getEnvironment());
                 Location spawnLoc = getSafeSpawnLocation(player);
 
                 Mannequin mannequin = (Mannequin) player.getWorld()
@@ -96,13 +113,9 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
                     mannequin.setCustomNameVisible(true);
                 }
 
-
-
                 manager.register(mannequin.getUniqueId(), player.getUniqueId(), driver.getUniqueId());
             }
-
-            sender.sendMessage("Spawned mannequins for all players.");
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             logger.severe("An unexpected error occurred while spawning mannequins.:");
             logger.severe("Exception type: " + e.getClass().getName());
             logger.severe("Message: " + e.getMessage());
@@ -111,6 +124,7 @@ public class SpawnMannequinsCommand extends SafeCommandExecutor {
             }
             sender.sendMessage("§cAn unexpected error occurred");
         }
+
     }
 
     public void handleReloadCommand(CommandSender sender) {

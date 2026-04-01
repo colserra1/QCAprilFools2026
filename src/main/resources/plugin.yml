@@ -9,8 +9,8 @@ description: A simple plugin to give the mannequin mob a basic AI and teleport t
 website: queercraft.net
 commands:
   spawnmannequins:
-    description: Spawn a wave of mannequins that teleport to random players and attack them
-    usage: /spawnmannequins
+    description: Spawn a wave of mannequins that teleport to random players and attack them or, alternatively, only for a single player.
+    usage: /spawnmannequins [player]
 permissions:
   spawnmannequins.reload:
     description: Allows reloading of the config
